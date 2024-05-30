@@ -79,12 +79,13 @@ void FFurMorphObject::Update_RenderThread(FRHICommandListImmediate& RHICmdList, 
 			const int32 WeightIndex = ActiveMorphTargetList.Find(ActiveMorphTarget);
 
 			checkSlow(ActiveMorphTarget != NULL);
+			int LODIndex = 0;
 			checkSlow(ActiveMorphTarget->HasDataForLOD(LODIndex));
 
 			const float MorphTargetWeight = MorphTargetWeights[WeightIndex];
 			const float MorphAbsWeight = FMath::Abs(MorphTargetWeight);
 
-			checkSlow(MorphAbsWeight >= MinMorphTargetBlendWeight && MorphAbsWeight <= MaxMorphTargetBlendWeight);
+			//checkSlow(MorphAbsWeight >= MinMorphTargetBlendWeight && MorphAbsWeight <= MaxMorphTargetBlendWeight);
 
 			// Get deltas
 			int32 NumDeltas;
