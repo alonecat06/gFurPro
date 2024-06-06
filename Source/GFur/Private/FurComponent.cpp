@@ -662,6 +662,10 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 //	ERHIFeatureLevel::Type FeatureLevel = GetWorld()->FeatureLevel;
 //	if (FeatureLevel >= ERHIFeatureLevel::ES3_1)
 	{
+		/*
+		 * GetParentComponents获得所有父组件选出USkeletalMeshComponent类型的
+		 * 设置为MasterPoseComponent
+		 */
 		TArray<USceneComponent*> parents;
 		GetParentComponents(parents);
 		for (USceneComponent* Comp : parents)
@@ -680,8 +684,11 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 
 		TArray<FFurData*> FurArray;
 		TArray<FFurMorphObject*> MorphObjects;
-		if (SkeletalGrowMesh && SkeletalGrowMesh->GetResourceForRendering())
+		if (SkeletalGrowMesh && SkeletalGrowMesh->GetResourceForRendering())// 如果是蒙皮网格
 		{
+			/*
+			 * 更新蒙皮骨骼
+			 */
 			UpdateMasterBoneMap();
 
 			auto NumLods = SkeletalGrowMesh->GetResourceForRendering()->LODRenderData.Num();
@@ -694,6 +701,9 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 			//bool UseMorphTargets = !DisableMorphTargets 
 			MasterPoseComponent.IsValid() && MasterPoseComponent->SkeletalMesh->GetMorphTargets().Num() > 0;
 
+			/*
+			 * 生成基础的FurData和MorphRemapTables
+			 */
 			{
 				auto Data = FFurSkinData::CreateFurData(FMath::Max(LayerCount, 1), 0, this);
 				FurArray.Add(Data);
@@ -701,6 +711,10 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 				if (UseMorphTargets)
 					CreateMorphRemapTable(0);
 			}
+			
+			/*
+			 * 为所有LOD生成FurData和MorphRemapTables
+			 */
 			for (FFurLod& lod : LODs)
 			{
 				auto Data = FFurSkinData::CreateFurData(FMath::Max(lod.LayerCount, 1), FMath::Min(NumLods - 1, lod.Lod), this);
@@ -714,10 +728,17 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 
 			return new FFurSceneProxy(this, FurData, LODs, FurMaterials, OverrideMaterials, MorphObjects, CastShadow, PhysicsEnabled, GetWorld()->FeatureLevel);
 		}
-		else if (StaticGrowMesh && StaticGrowMesh->GetRenderData())
+		else if (StaticGrowMesh && StaticGrowMesh->GetRenderData())// 如果是静态网格
 		{
+			/*
+			 * 生成基础的FurData
+			 */
 			FurArray.Add(FFurStaticData::CreateFurData(FMath::Max(LayerCount, 1), 0, this));
 			MorphObjects.Add(NULL);
+
+			/*
+			 * 为所有LOD生成FurData
+			 */
 			for (FFurLod& lod : LODs)
 			{
 				FurArray.Add(FFurStaticData::CreateFurData(FMath::Max(lod.LayerCount, 1), FMath::Min(StaticGrowMesh->GetRenderData()->LODResources.Num() - 1, lod.Lod), this));

@@ -223,6 +223,11 @@ template<EStaticMeshVertexTangentBasisType TangentBasisTypeT>
 void FFurData::UnpackNormals(const FStaticMeshVertexBuffer& InVertices)
 {
 	typedef TStaticMeshVertexTangentDatum<typename TStaticMeshVertexTangentTypeSelector<TangentBasisTypeT>::TangentTypeT> TangentType;
+	/*
+	 * 传入Mesh顶点Buffer，通过FStaticMeshVertexBuffer::GetTangentData获得切线数据(uin8*指针)
+	 * cast成TStaticMeshVertexTangentDatum<T>
+	 * 并通过这个模板结构体，获得TangentZ，存储到FFurData的Normals
+	 */
 	const TangentType* SrcTangents = reinterpret_cast<const TangentType*>(const_cast<FStaticMeshVertexBuffer&>(InVertices).GetTangentData());
 	uint32 NumVertices = InVertices.GetNumVertices();
 	Normals.Reset(0);
@@ -234,13 +239,17 @@ void FFurData::UnpackNormals(const FStaticMeshVertexBuffer& InVertices)
 }
 
 template<typename VertexTypeT, typename VertexBlitterT>
-inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 SrcVertexIndexEnd, VertexTypeT* Vertices, const VertexBlitterT& VertexBlitter)
+inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 SrcVertexIndexEnd
+	, VertexTypeT* Vertices, const VertexBlitterT& VertexBlitter)
 {
 	if (Vertices == nullptr)
 	{
 		return 0;
 	}
 
+	/*
+	 * 使用了引导网格，需要根据控制点计算毛发的长度
+	 */
 	TArray<float> FurLengths;
 	GenerateFurLengths(FurLengths);
 
@@ -252,6 +261,9 @@ inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 S
 		{
 			if (FurSplinesUsed)
 			{
+				/*
+				 * 使用了引导网格，
+				 */
 				int32 SplineIndex = SplineMap[SrcVertexIndex];
 				if (RemoveFacesWithoutSplines)
 				{
@@ -272,9 +284,12 @@ inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 S
 			}
 			else
 			{
+				//从传入的Vertices（VertexBuffer经过Section偏移），获得要填充的目标顶点
 				auto& Vertex = Vertices[DstVertexIndex];
+				//使用位块传输的方式，在Buffer中将SrcVertexIndex拷贝给DstVertexIndex
 				VertexBlitter.Blit(Vertex, SrcVertexIndex);
-				GenerateFurVertex(Vertex.FurOffset, Vertex.UV1, Vertex.UV2, Vertex.UV3, FVector3f(Normals[SrcVertexIndex]), FurLength, GenLayerData);
+				GenerateFurVertex(Vertex.FurOffset, Vertex.UV1, Vertex.UV2, Vertex.UV3,
+					FVector3f(Normals[SrcVertexIndex]), FurLength, GenLayerData);
 			}
 			DstVertexIndex++;
 		}
@@ -288,6 +303,9 @@ inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 S
 		{
 			if (FurSplinesUsed)
 			{
+				/*
+				 * 使用了引导网格，
+				 */
 				int32 SplineIndex = SplineMap[SrcVertexIndex];
 				if (RemoveFacesWithoutSplines)
 				{

@@ -849,6 +849,10 @@ FFurSkinData* FFurSkinData::CreateFurData(int32 InFurLayerCount, int32 InLod, UG
 
 	FScopeLock lock(&FurSkinDataCS);
 
+	/*
+	 * 调用FFurSkinData::Compare对比静态数组FurSkinData
+	 * 相同就添加引用返回
+	 */
 	for (FFurSkinData* Data : FurSkinData)
 	{
 		if (Data->Compare(InFurLayerCount, InLod, InFurComponent))
@@ -869,7 +873,17 @@ FFurSkinData* FFurSkinData::CreateFurData(int32 InFurLayerCount, int32 InLod, UG
 	}*/
 
 	FFurSkinData* Data = new FFurSkinData();
+	/*
+	 * 从组件中获得SkeletalMesh和GuideMeshes，
+	 * 并视配置情况，生成UFurSplines
+	 */
 	Data->Set(InFurLayerCount, InLod, InFurComponent);
+	
+	/*
+	 * BuildFur是一组模板方法，最终调用到BuildFur<T1,T2,T3>
+	 * 三个模板参数影响到后续模板类型FFurSkinVertexFactoryBase的实例化，
+	 * 对应其MorphTargets, Physics, bExtraInfluences的true or false
+	 */
 	Data->BuildFur(BuildType::Full);
 	FurSkinData.Add(Data);
 	return Data;
@@ -1010,7 +1024,10 @@ void FFurSkinData::Set(int32 InFurLayerCount, int32 InLod, class UGFurComponent*
 		Mesh->RemoveFromRoot();
 #endif // WITH_EDITORONLY_DATA
 
-
+	/*
+	 * 从组件上获得毛发渲染相关的配置数据
+	 * 如Lod、FurLayerCount、FurLength、ShellBias等
+	 */
 	FFurData::Set(InFurLayerCount, InLod, InFurComponent);
 
 	SkeletalMesh = InFurComponent->SkeletalGrowMesh;
@@ -1024,6 +1041,10 @@ void FFurSkinData::Set(int32 InFurLayerCount, int32 InLod, class UGFurComponent*
 
 	check(SkeletalMesh);
 
+	/*
+	 * 如果没有指定FurSplines，组件传入的引导Mesh数量大于0，需要生成FurSplines
+	 * 调用GenerateSplines()生成引导网格
+	 */
 	if (FurSplinesAssigned == NULL && GuideMeshes.Num() > 0)
 	{
 		if (FurSplinesGenerated)
@@ -1110,10 +1131,16 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 {
 	typedef FFurSkinVertex<TangentBasisTypeT, UVTypeT, bExtraBoneInfluencesT> VertexType;
 
+	/*
+	 * 根据模板参数设置FFurData的成员变量bUseHighPrecisionTangentBasis、bUseFullPrecisionUVs和FFurSkinData的HasExtraBoneInfluences
+	 */
 	bUseHighPrecisionTangentBasis = TangentBasisTypeT == EStaticMeshVertexTangentBasisType::HighPrecision;
 	bUseFullPrecisionUVs = UVTypeT == EStaticMeshVertexUVType::HighPrecision;
 	HasExtraBoneInfluences = bExtraBoneInfluencesT;
 
+	/*
+	 * 从传入的LodRenderData获得Static Vertex的Position Buffer、蒙皮权重Buffer、Mesh顶点Buffer、顶点色Buffer
+	 */
 	const auto& SourcePositions = LodRenderData.StaticVertexBuffers.PositionVertexBuffer;
 	const auto& SourceSkinWeights = LodRenderData.SkinWeightVertexBuffer;
 	const auto& SourceVertices = LodRenderData.StaticVertexBuffers.StaticMeshVertexBuffer;
@@ -1127,38 +1154,72 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 
 	if (Build == BuildType::Full)
 	{
+		/*
+		 * 从传入的Mesh顶点buff中，将内存数据块解包，更新临时的成员变量Normals
+		 */
 		UnpackNormals<TangentBasisTypeT>(SourceVertices);
 	}
 	if (Build >= BuildType::Splines)
+	{
+		/*
+		 * 从传入的Position Buffer，更新临时的成员变量SplineMap和VertexRemap
+		 */
 		GenerateSplineMap(SourcePositions);
+	}
 
-	uint32 NewVertexCount = VertexCountPerLayer * FurLayerCount;
+	uint32 NewVertexCount = VertexCountPerLayer * FurLayerCount;//得到总的顶点数
 
+	/*
+	 * 当上一帧的数据还没提交到渲染线程，就while在等待
+	 */
 	while (RenderThreadDataSubmissionPending)
 		;
 
 	TArray<FSection>& LocalSections = Sections.Num() ? TempSections : Sections;
 	LocalSections.SetNum(LodRenderData.RenderSections.Num());
 
+	/*
+	 * 将Position Buffer、蒙皮权重Buffer、Mesh顶点Buffer、顶点色Buffer传递给VertexBlitter类（顶点位块，方便传输）
+	 * 以便后续在GenerateFurVertices将CPU端的数据传递给GPU端
+	 */
 	FFurSkinVertexBlitter<TangentBasisTypeT, UVTypeT, bExtraBoneInfluencesT> VertexBlitter(SourcePositions, SourceVertices, SourceColors, SourceSkinWeights);
 
+	/*
+	 * 成员变量VertexBuffer锁定，大小为前面计算的顶点总数
+	 * VertexBuffer在后续的FFurSceneProxy的构造函数中，会调用到FFurSkinData::CreateVertexFactories，为每个lod创建顶点工厂
+	 */
 	VertexType* Vertices = VertexBuffer.Lock<VertexType>(NewVertexCount);
 	if (Vertices == nullptr)
 	{
 		return;
 	}
-	uint32 SectionVertexOffset = 0;
+
+	uint32 SectionVertexOffset = 0;//Section的顶点在顶点buffer中的偏移
 	float MaxDistSq = 0.0f;
 	for (int32 SectionIndex = 0; SectionIndex < LodRenderData.RenderSections.Num(); SectionIndex++)
 	{
+		/*
+		 * 遍历传入LodRenderData的每个Section（FSkelMeshRenderSection结构体）
+		 */
 		const auto& SourceSection = LodRenderData.RenderSections[SectionIndex];
 		FSection& FurSection = LocalSections[SectionIndex];
 
 		FurSection.MinVertexIndex = SectionVertexOffset;
 
-		uint32 VertCount = GenerateFurVertices(SourceSection.BaseVertexIndex, SourceSection.BaseVertexIndex + SourceSection.NumVertices, Vertices + SectionVertexOffset, VertexBlitter);
+		/*
+		 * 为当前Section调用模板函数GenerateFurVertices<T1,T2>()
+		 * 生成顶点，其中T1是顶点类型，T2用于传输的位块类型
+		 */
+		uint32 VertCount = GenerateFurVertices(SourceSection.BaseVertexIndex
+			, SourceSection.BaseVertexIndex + SourceSection.NumVertices
+			, Vertices + SectionVertexOffset, VertexBlitter);
+		
 		if (Build == BuildType::Full)
 		{
+			/*
+			 * 寻找与骨骼参考点相距最大的距离MaxDistSq
+			 * 最终保存为成员变量MaxVertexBoneDistance
+			 */
 			const auto& RefPose = SkeletalMesh->GetRefSkeleton().GetRawRefBonePose();
 			for (uint32 i = 0; i < VertCount; i++)
 			{
@@ -1174,29 +1235,42 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 				}
 			}
 		}
-		SectionVertexOffset += VertCount * FurLayerCount;
 
-		FurSection.MaxVertexIndex = SectionVertexOffset - 1;
+		SectionVertexOffset += VertCount * FurLayerCount;//在顶点buffer中偏移这个Section的顶点的
+		FurSection.MaxVertexIndex = SectionVertexOffset - 1;//记录这个Section的中最后一个顶点（在顶点buffer中）的索引
 	}
-	VertexBuffer.Unlock();
+	VertexBuffer.Unlock();//成员变量VertexBuffer解锁
+
 	if (Build == BuildType::Full)
 		MaxVertexBoneDistance = sqrtf(MaxDistSq);
 
 	if (Build >= BuildType::Splines || FurLayerCount != OldFurLayerCount || RemoveFacesWithoutSplines != OldRemoveFacesWithoutSplines)
 	{
+		/*
+		 * 基本是必进，Build都大于等于BuildType::Splines，没有Minimal的调用
+		 */
 		OldFurLayerCount = FurLayerCount;
 		OldRemoveFacesWithoutSplines = RemoveFacesWithoutSplines;
 
-		// indices
+		/*
+		 * 从LodRenderData中获取SourceIndices
+		 */
 		TArray<uint32> SourceIndices;
 		LodRenderData.MultiSizeIndexContainer.GetIndexBuffer(SourceIndices);
 
+		/*
+		 * 成员变量IndexBuffer锁定，大小为每层索引数（来自SourceIndices）乘以层数
+		 * FFurData::GetIndexBuffer_RenderThread，可以在渲染线程获得IndexBuffer
+		 */
 		auto& Indices = IndexBuffer.Lock();
 		Indices.Reset();
 		Indices.AddUninitialized(SourceIndices.Num() * FurLayerCount);
 		uint32 Idx = 0;
 		for (int32 SectionIndex = 0; SectionIndex < LodRenderData.RenderSections.Num(); SectionIndex++)
 		{
+			/*
+			 * 遍历Section
+			 */
 			const auto& SourceSection = LodRenderData.RenderSections[SectionIndex];
 			FSection& FurSection = LocalSections[SectionIndex];
 
@@ -1205,10 +1279,16 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 
 			for (int32 Layer = 0; Layer < FurLayerCount; Layer++)
 			{
+				/*
+				 * 遍历Fur每一层
+				 */
 				int32 VertexIndexOffset = Layer * ((FurSection.MaxVertexIndex - FurSection.MinVertexIndex + 1) / FurLayerCount) + FurSection.MinVertexIndex;
 				check(VertexIndexOffset >= 0);
 				if (FurSplinesUsed && RemoveFacesWithoutSplines)
 				{
+					/*
+					 * 使用了引导网格，Idx的计算需要特殊
+					 */
 					for (uint32 t = 0; t < SourceSection.NumTriangles; ++t)
 					{
 						uint32 Idx0 = SourceIndices[SourceSection.BaseIndex + t * 3];
@@ -1357,15 +1437,21 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 /** Generate Splines */
 void GenerateSplines(UFurSplines* Splines, USkeletalMesh* InSkeletalMesh, int32 InLod, const TArray<USkeletalMesh*>& InGuideMeshes)
 {
+	/*
+	 * 从传入的SkeletalMesh获得指定Lod下的RenderData
+	 * 进而获得其Static Vertex的Position Buffer
+	 */
 	auto* SkeletalMeshResource = InSkeletalMesh->GetResourceForRendering();
 	check(SkeletalMeshResource);
-
 	if (InLod >= SkeletalMeshResource->LODRenderData.Num())
 		InLod = SkeletalMeshResource->LODRenderData.Num() - 1;
 	const auto& LodModel = SkeletalMeshResource->LODRenderData[InLod];
-
 	const auto& SourcePositions = LodModel.StaticVertexBuffers.PositionVertexBuffer;
 
+	/*
+	 * 遍历SourcePositions，将顶点位置信息设置给Splines的Vertices
+	 * Splines的Vertices的索引要考虑预留引导网格的顶点，通过ControlPointCount控制
+	 */
 	uint32 VertexCount = SourcePositions.GetNumVertices();
 	int32 ControlPointCount = InGuideMeshes.Num() + 1;
 	Splines->Vertices.AddUninitialized(VertexCount * ControlPointCount);
@@ -1376,6 +1462,14 @@ void GenerateSplines(UFurSplines* Splines, USkeletalMesh* InSkeletalMesh, int32 
 		Splines->Vertices[Index] = FVector(SourcePositions.VertexPosition(i));
 	}
 
+	/*
+	 * 遍历传入的GuideMeshes数组（数组的每个元素将成为control point）
+	 * 类似地获取相应的Position Buffer，设置给Splines的Vertices
+	 * 索引计算考虑引导网格数组索引k（可以理解为控制点层数）
+	 *
+	 * 通过这步处理，将（当前lod下）Splines的Vertices填充了一层基础层（以传入InSkeletalMesh为准）
+	 * + n层引导层（InGuideMeshes数组，每个网格为一层，每层顶点数为当前层引导网格和基础层网格顶点数中少的那个）
+	 */
 	int32 k = 1;
 	for (USkeletalMesh* GuideMesh : InGuideMeshes)
 	{

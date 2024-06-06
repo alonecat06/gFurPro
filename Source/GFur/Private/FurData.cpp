@@ -166,10 +166,17 @@ bool FFurData::Similar(int InLod, class UGFurComponent* InFurComponent)
 
 void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 {
+	/*
+	 * 该方法最重要是设置了VertexCountPerLayer
+	 */
 	SplineMap.Reset();
 	VertexRemap.Reset();
 	if (FurSplinesUsed)
 	{
+		/*
+		 * 有使用FurSpline（引导网格）
+		 * 要填充SplineMap、VertexRemap，最终计算VertexCountPerLayer
+		 */
 		uint32 SourceVertexCount = InPositions.GetNumVertices();
 		int32 SplineCount = FurSplinesUsed->SplineCount();
 
@@ -178,6 +185,9 @@ void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 		float MaxLenSquared = -FLT_MAX;
 		SplineMap.AddUninitialized(SourceVertexCount);
 
+		/*
+		 * 初始化Cells和NextIndex
+		 */
 		const int32 Size = 64;
 		TArray<int32> Cells;
 		TArray<int32> NextIndex;
@@ -186,6 +196,10 @@ void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 			Cells[i] = -1;
 		NextIndex.AddUninitialized(SplineCount);
 
+		/*
+		 * 遍历FurSplinesUsed的第一层顶点，找到其中的X和Y的最大最小值
+		 * 与Size进行比较，得出FactorWidth和FactorHeight
+		 */
 		float MinX = FLT_MAX;
 		float MinY = FLT_MAX;
 		float MaxX = -FLT_MAX;
@@ -209,6 +223,10 @@ void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 		float FactorWidth = Size / (MaxX - MinX);
 		float FactorHeight = Size / (MaxY - MinY);
 
+		/*
+		 * 根据FurSplinesUsed的第一层顶点坐标、FactorWidth/FactorHeight
+		 * 计算Cells和NextIndex的值
+		 */
 		for (int32 i = 0; i < SplineCount; i++)
 		{
 			FVector p = FurSplinesUsed->GetFirstControlPoint(i);
@@ -230,10 +248,9 @@ void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 			}
 		}
 
-
 		for (uint32 i = 0; i < SourceVertexCount; i++)
 		{
-			const float Epsilon = FurSplinesUsed->Threshold;
+			const float Epsilon = FurSplinesUsed->Threshold;// 来自导入资源的设置 UFurSplineAbcImporterFactory::FactoryCreateFile
 			const float EpsilonSquared = Epsilon * Epsilon;
 			FVector p = FVector(InPositions.VertexPosition(i));
 			int32 BeginX = FMath::Max(FMath::FloorToInt((p.X - Epsilon - MinX) * FactorWidth), 0);
@@ -272,8 +289,12 @@ void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 				}
 			}
 			SplineMap[i] = ClosestIndex;
-			if (ClosestIndex != -1)
+			if (ClosestIndex != -1)// 该点周围的xy遍历，找到最底层和最外层距离最近的顶点的索引
 			{
+				/*
+				 * 得到FurSplinesUsed中同一个顶点在最底层和最外层的距离平方
+				 * 记录最小/最大距离平方
+				 */
 				FVector s = FurSplinesUsed->GetFirstControlPoint(ClosestIndex);
 				FVector s2 = FurSplinesUsed->GetLastControlPoint(ClosestIndex);
 				float SizeSquared = (s2 - s).SizeSquared();
@@ -284,27 +305,48 @@ void FFurData::GenerateSplineMap(const FPositionVertexBuffer& InPositions)
 				ValidVertexCount++;
 			}
 		}
+		
+		/*
+		 * 得到CurrentMinFurLength和CurrentMaxFurLength
+		 * 以备后续FFurData::GenerateFurVertex()中使用
+		 */
 		CurrentMinFurLength = FMath::Sqrt(MinLenSquared) * FurLength;
 		if (CurrentMinFurLength < MinFurLength)
 			CurrentMinFurLength = MinFurLength;
 		CurrentMaxFurLength = FMath::Sqrt(MaxLenSquared) * FurLength;
 
-		if (RemoveFacesWithoutSplines)
+		if (RemoveFacesWithoutSplines)//组件传递过来，UFurComponent.RemoveFacesWithoutSplines
 		{
+			/*
+			 * 需要移除没有spline的面
+			 * 初始化VertexRemap为传入的Position Buffer的顶点个数
+			 * VertexCountPerLayer为之前遍历到的顶点数
+			 */
 			VertexRemap.AddUninitialized(SourceVertexCount);
 			VertexCountPerLayer = ValidVertexCount;
 		}
 		else
 		{
+			/*
+			 * 不需要移除没有spline的面
+			 * VertexCountPerLayer为传入的Position Buffer的顶点个数
+			 */
 			VertexCountPerLayer = SourceVertexCount;
 		}
 	}
 	else
 	{
+		/*
+		 * 没有使用FurSpline（引导网格）
+		 * VertexCountPerLayer为传入的Position Buffer的顶点个数
+		 */
 		VertexCountPerLayer = InPositions.GetNumVertices();
 	}
 }
 
+/*
+ * 生成FFurGenLayerData，并将FurData的参数计算后设置给它
+ */
 FFurData::FFurGenLayerData FFurData::CalcFurGenLayerData(int32 Layer)
 {
 	FFurGenLayerData Data;
@@ -346,7 +388,8 @@ void FFurData::GenerateFurLengths(TArray<float>& FurLengths)
 	}
 }
 
-void FFurData::GenerateFurVertex(FVector3f& OutFurOffset, FVector2f& OutUv1, FVector2f& OutUv2, FVector2f& OutUv3, const FVector3f& InTangentZ, float InFurLength, const FFurGenLayerData& InGenLayerData)
+void FFurData::GenerateFurVertex(FVector3f& OutFurOffset, FVector2f& OutUv1, FVector2f& OutUv2, FVector2f& OutUv3
+	, const FVector3f& InTangentZ, float InFurLength, const FFurGenLayerData& InGenLayerData)
 {
 	OutUv1.X = InGenLayerData.NonLinearFactor * FurLength;
 	float r = InGenLayerData.LayerNoiseStrength != 0 ? FMath::RandRange(-InGenLayerData.LayerNoiseStrength, InGenLayerData.LayerNoiseStrength) : 0;
