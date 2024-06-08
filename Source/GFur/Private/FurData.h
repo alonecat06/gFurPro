@@ -256,6 +256,7 @@ inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 S
 	uint32 VerticesPerLayer;
 	uint32 DstVertexIndex = 0;
 	{
+		// 计算最外层的FFurGenLayerData
 		auto GenLayerData = CalcFurGenLayerData(FurLayerCount);
 		for (uint32 SrcVertexIndex = SrcVertexIndexBegin; SrcVertexIndex < SrcVertexIndexEnd; SrcVertexIndex++)
 		{
@@ -284,20 +285,25 @@ inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 S
 			}
 			else
 			{
-				//从传入的Vertices（VertexBuffer经过Section偏移），获得要填充的目标顶点
+				// 从传入的Vertices（VertexBuffer经过Section偏移），获得要填充的目标顶点
 				auto& Vertex = Vertices[DstVertexIndex];
-				//使用位块传输的方式，在Buffer中将SrcVertexIndex拷贝给DstVertexIndex
+				// 使用位块传输的方式，在Buffer中将SrcVertexIndex拷贝给DstVertexIndex
 				VertexBlitter.Blit(Vertex, SrcVertexIndex);
+				// 根据Normals、FurLength、GenLayerData填充Vertex的FurOffset/UV1/UV2/UV3
 				GenerateFurVertex(Vertex.FurOffset, Vertex.UV1, Vertex.UV2, Vertex.UV3,
 					FVector3f(Normals[SrcVertexIndex]), FurLength, GenLayerData);
 			}
 			DstVertexIndex++;
 		}
 	}
-	VerticesPerLayer = DstVertexIndex;
+	VerticesPerLayer = DstVertexIndex;//每一层的顶点数
 
 	for (int32 Layer = FurLayerCount - 2; Layer >= 0; --Layer)
 	{
+		/*
+		 * (由最外数起第三层开始?)逆序遍历
+		 */
+		// 计算相应层的FFurGenLayerData
 		auto GenLayerData = CalcFurGenLayerData(Layer + 1);
 		for (uint32 SrcVertexIndex = SrcVertexIndexBegin; SrcVertexIndex < SrcVertexIndexEnd; SrcVertexIndex++)
 		{
@@ -321,8 +327,11 @@ inline uint32 FFurData::GenerateFurVertices(uint32 SrcVertexIndexBegin, uint32 S
 			}
 			else
 			{
+				// 从传入的Vertices（VertexBuffer经过Section偏移），获得要填充的目标顶点
 				auto& Vertex = Vertices[DstVertexIndex];
+				// 使用位块传输的方式，在Buffer中将SrcVertexIndex拷贝给DstVertexIndex
 				VertexBlitter.Blit(Vertex, SrcVertexIndex);
+				// 根据Normals、FurLength、GenLayerData填充Vertex的FurOffset/UV1/UV2/UV3
 				GenerateFurVertex(Vertex.FurOffset, Vertex.UV1, Vertex.UV2, Vertex.UV3, FVector3f(Normals[SrcVertexIndex]), FurLength, GenLayerData);
 			}
 			DstVertexIndex++;

@@ -388,6 +388,14 @@ void FFurData::GenerateFurLengths(TArray<float>& FurLengths)
 	}
 }
 
+/*
+ * FurOffset是沿着法线方向（InTangentZ）进行长度为InGenLayerData.NonLinearFactor*FurLength + 一个随机值的偏移
+ * UV1.X为InGenLayerData.NonLinearFactor * FurLength在CurrentMaxFurLength和CurrentMinFurLength的一个插值
+ * UV1.Y为InGenLayerData.NonLinearFactor
+ * UV2.X为InGenLayerData.LinearFactor
+ * UV2.Y为InFurLength
+ * UV3.X为Lod
+ */
 void FFurData::GenerateFurVertex(FVector3f& OutFurOffset, FVector2f& OutUv1, FVector2f& OutUv2, FVector2f& OutUv3
 	, const FVector3f& InTangentZ, float InFurLength, const FFurGenLayerData& InGenLayerData)
 {

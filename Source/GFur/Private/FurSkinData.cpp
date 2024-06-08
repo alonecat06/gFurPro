@@ -885,6 +885,10 @@ FFurSkinData* FFurSkinData::CreateFurData(int32 InFurLayerCount, int32 InLod, UG
 	 * 对应其MorphTargets, Physics, bExtraInfluences的true or false
 	 */
 	Data->BuildFur(BuildType::Full);
+
+	/*
+	 * 加入到全局静态数组里面缓存
+	 */
 	FurSkinData.Add(Data);
 	return Data;
 }
@@ -1209,6 +1213,7 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 		/*
 		 * 为当前Section调用模板函数GenerateFurVertices<T1,T2>()
 		 * 生成顶点，其中T1是顶点类型，T2用于传输的位块类型
+		 * 得到生成的顶点数VertCount
 		 */
 		uint32 VertCount = GenerateFurVertices(SourceSection.BaseVertexIndex
 			, SourceSection.BaseVertexIndex + SourceSection.NumVertices
@@ -1217,6 +1222,7 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 		if (Build == BuildType::Full)
 		{
 			/*
+			 * 遍历上述生成的顶点（Vertices数组，索引需要加上偏移SectionVertexOffset，个数为VertCount）
 			 * 寻找与骨骼参考点相距最大的距离MaxDistSq
 			 * 最终保存为成员变量MaxVertexBoneDistance
 			 */
@@ -1314,10 +1320,13 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 		}
 		check(Idx <= (uint32)Indices.Num());
 		Indices.RemoveAt(Idx, Indices.Num() - Idx, false);
-		IndexBuffer.Unlock();
+		IndexBuffer.Unlock();//成员变量IndexBuffer解锁
 
 		if (TempSections.Num())
 		{
+			/*
+			 * 转入渲染线程，将在Game线程更新的TempSections，更新渲染线程的Section
+			 */
 			ENQUEUE_RENDER_COMMAND(UpdateDataCommand)([this, NewVertexCount](FRHICommandListImmediate& RHICmdList) {
 				Sections = TempSections;
 				VertexCount = NewVertexCount;
@@ -1329,6 +1338,11 @@ inline void FFurSkinData::BuildFur(const FSkeletalMeshLODRenderData& LodRenderDa
 		}
 	}
 
+	/*
+	 * RenderThreadDataSubmissionPending设置为true，阻塞再次进入Sections刷新的流程
+	 * 直到渲染线程的命令队列执行新的命令，意味着之前的Section更新命令已经完成
+	 * RenderThreadDataSubmissionPending才会设置为false，开放Sections刷新流程
+	 */
 	RenderThreadDataSubmissionPending = true;
 	ENQUEUE_RENDER_COMMAND(UpdateDataCommand)([this](FRHICommandListImmediate& RHICmdList) {
 		RenderThreadDataSubmissionPending = false;
