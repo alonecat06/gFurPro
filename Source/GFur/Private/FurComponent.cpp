@@ -38,7 +38,10 @@
 class FFurSceneProxy : public FPrimitiveSceneProxy
 {
 public:
-	FFurSceneProxy(UGFurComponent* InComponent, const TArray<FFurData*>& InFurData, const TArray<FFurLod>& InFurLods, const TArray<UMaterialInstanceDynamic*>& InFurMaterials, const TArray<UMaterialInterface*>& InOverrideMaterials, const TArray<FFurMorphObject*>& InMorphObjects, bool InCastShadows, bool InPhysics, ERHIFeatureLevel::Type InFeatureLevel)
+	FFurSceneProxy(UGFurComponent* InComponent, const TArray<FFurData*>& InFurData, const TArray<FFurLod>& InFurLods,
+		const TArray<UMaterialInstanceDynamic*>& InFurMaterials, const TArray<UMaterialInterface*>& InOverrideMaterials,
+		const TArray<FFurMorphObject*>& InMorphObjects, bool InCastShadows, bool InPhysics,
+		ERHIFeatureLevel::Type InFeatureLevel)
 		: FPrimitiveSceneProxy(InComponent)
 		, FurComponent(InComponent)
 		, FurData(InFurData)
@@ -49,6 +52,9 @@ public:
 	{
 		bAlwaysHasVelocity = true;
 
+		/*
+		 * Override的材质直接设置为FurMaterials
+		 */
 		for (int i = 0; i < InOverrideMaterials.Num() && i < FurMaterials.Num(); i++)
 		{
 			UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(InOverrideMaterials[i]);
@@ -56,10 +62,19 @@ public:
 				FurMaterials[i] = DynamicMaterial;
 		}
 
+		/*
+		 * 为每个FurData（即每级Lod），创建顶点工厂
+		 */
 		for (int i = 0; i < InFurData.Num(); i++)
 		{
+			// 该级lod是否开启物理计算
 			bool LodPhysics = i > 0 ? InFurLods[i - 1].PhysicsEnabled : true;
-			InFurData[i]->CreateVertexFactories(VertexFactories, InMorphObjects[i] ? InMorphObjects[i]->GetVertexBuffer() : NULL, InPhysics && LodPhysics, InFeatureLevel);
+
+			// 创建顶点工厂
+			InFurData[i]->CreateVertexFactories(VertexFactories,
+				InMorphObjects[i] ? InMorphObjects[i]->GetVertexBuffer() : NULL,
+				InPhysics && LodPhysics,
+				InFeatureLevel);
 		}
 
 #if RHI_RAYTRACING
@@ -123,10 +138,15 @@ public:
 
 		const bool Wireframe = AllowDebugViewmodes() && ViewFamily.EngineShowFlags.Wireframe;
 
-		FMaterialRenderProxy* WireframeMaterialInstance = new FColoredMaterialRenderProxy(GEngine->WireframeMaterial ? GEngine->WireframeMaterial->GetRenderProxy() : NULL, FLinearColor(0, 0.5f, 1.f));
+		FMaterialRenderProxy* WireframeMaterialInstance = new FColoredMaterialRenderProxy(
+			GEngine->WireframeMaterial ? GEngine->WireframeMaterial->GetRenderProxy() : NULL,
+			FLinearColor(0, 0.5f, 1.f));
 		
 		Collector.RegisterOneFrameMaterialProxy(WireframeMaterialInstance);
 
+		/*
+		 * 计算lod
+		 */
 		int NewLodLevel = 0x7fffffff;
 		if (FurComponent->LODFromParent)
 		{
@@ -726,7 +746,8 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 
 			FurData = FurArray;
 
-			return new FFurSceneProxy(this, FurData, LODs, FurMaterials, OverrideMaterials, MorphObjects, CastShadow, PhysicsEnabled, GetWorld()->FeatureLevel);
+			return new FFurSceneProxy(this, FurData, LODs, FurMaterials, OverrideMaterials, MorphObjects,
+				CastShadow, PhysicsEnabled, GetWorld()->FeatureLevel);
 		}
 		else if (StaticGrowMesh && StaticGrowMesh->GetRenderData())// 如果是静态网格
 		{
@@ -746,18 +767,26 @@ FPrimitiveSceneProxy* UGFurComponent::CreateSceneProxy()
 			}
 
 			FurData = FurArray;
-			return new FFurSceneProxy(this, FurData, LODs, FurMaterials, OverrideMaterials, MorphObjects, CastShadow, PhysicsEnabled, GetWorld()->FeatureLevel);
+			return new FFurSceneProxy(this, FurData, LODs, FurMaterials, OverrideMaterials, MorphObjects,
+				CastShadow, PhysicsEnabled, GetWorld()->FeatureLevel);
 		}
 	}
 	return nullptr;
 }
 
-
+/*
+ * 该函数主要用于在运行时动态地创建或更新材质的渲染状态
+ * 这包括编译关联的顶点着色器、像素着色器等，以便正确地在 GPU 上渲染材质
+ */
 void UGFurComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
 {
 //	ERHIFeatureLevel::Type FeatureLevel = GetWorld()->FeatureLevel;
 //	if (FeatureLevel >= ERHIFeatureLevel::ES3_1)
 	{
+		/*
+		 * 创建UMaterialInstanceDynamic
+		 * 加到FurMaterials中，后续FurMaterials会传递给SceneProxy
+		 */
 		for (int i = 0, c = GetNumMaterials(); i < c; i++)
 		{
 			UMaterialInterface* tmp_material = GetMaterial(i);
@@ -777,7 +806,12 @@ void UGFurComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Con
 	updateFur();
 }
 
-
+/*
+ * 该函数主要用于将动态渲染数据发送到 GPU。
+ * 这包括更新动画数据、粒子系统属性、动态材质属性等。这些数据在运行时会发生变化，需要实时反映在渲染对象上。
+ * FEngineLoop::Tick --> UWorld::SendAllEndOfFrameUpdates --> UActorComponent::DoDeferredRenderUpdates_Concurrent
+ * 会调用到这个函数
+ */
 void UGFurComponent::SendRenderDynamicData_Concurrent()
 {
 	Super::SendRenderDynamicData_Concurrent();
@@ -845,7 +879,9 @@ UBodySetup* UGFurComponent::GetBodySetup()
 	return nullptr;
 }
 
-
+/*
+ * 更新Fur
+ */
 void UGFurComponent::updateFur()
 {
 	if (!SceneProxy || (!SkeletalGrowMesh && !StaticGrowMesh))
@@ -871,6 +907,9 @@ void UGFurComponent::updateFur()
 
 	FMatrix ToWorld = GetComponentTransform().ToMatrixNoScale();
 
+	/*
+	 * 物理计算
+	 */
 	auto Physics = [&](const FMatrix& NewTransformation, FMatrix& Transformation, FVector& LinearOffset, FVector& LinearVelocity
 		, FVector& AngularOffset, FVector& AngularVelocity) {
 		FVector d = (NewTransformation.GetOrigin() - Transformation.GetOrigin());

@@ -292,12 +292,20 @@ public:
 	void Init(const FFurVertexBuffer* VertexBuffer, const FVertexBuffer* MorphVertexBuffer, uint32 BoneCount)
 	{
 		typedef FFurSkinVertex<TangentBasisTypeT, UVTypeT, bExtraInfluencesT> VertexType;
+		// 嵌套类FShaderDataType初始化
 		ShaderData.Init(BoneCount);
 		ENQUEUE_RENDER_COMMAND(InitProceduralMeshVertexFactory)
 			([this, VertexBuffer, MorphVertexBuffer](FRHICommandListImmediate& RHICmdList) {
+				/*
+				 * 转入渲染线程
+				 */
 				const auto TangentElementType = TStaticMeshVertexTangentTypeSelector<TangentBasisTypeT>::VertexElementType;
 				const auto UvElementType = UVTypeT == EStaticMeshVertexUVType::HighPrecision ? VET_Float2 : VET_Half2;
 
+				/*
+				 * 创建嵌套类FDataType，NewData
+				 * 从VertexBuffer提取相应数据为FVertexStreamComponent，设置给NewData
+				 */
 				// Initialize the vertex factory's stream components.
 				FDataType NewData;
 				NewData.PositionComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(VertexBuffer, VertexType, Position, VET_Float3);
@@ -321,6 +329,10 @@ public:
 					NewData.DeltaTangentZ = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(MorphVertexBuffer, FMorphGPUSkinVertex, DeltaTangentZ, VET_Float3);
 				}
 
+				/*
+				 * 设置NewData为Data
+				 * 调用UpdateRHI，触发顶点工厂的重初始化
+				 */
 				SetData(NewData);
 			});
 	}
@@ -916,9 +928,14 @@ void FFurSkinData::DestroyFurData(const TArray<FFurData*>& InFurDataArray)
 	});
 }
 
-void FFurSkinData::CreateVertexFactories(TArray<FFurVertexFactory*>& VertexFactories, FVertexBuffer* InMorphVertexBuffer, bool InPhysics, ERHIFeatureLevel::Type InFeatureLevel)
+void FFurSkinData::CreateVertexFactories(TArray<FFurVertexFactory*>& VertexFactories, FVertexBuffer* InMorphVertexBuffer,
+	bool InPhysics, ERHIFeatureLevel::Type InFeatureLevel)
 {
 	auto CreateVertexFactory = [&](const FFurData::FSection& s, auto* vf) {
+		/*
+		 * 调用对应顶点工厂的Init，改方法为模板函数，模板参数调用时提供
+		 * FFurSkinVertexFactoryBase::Init
+		 */
 		if (bUseHighPrecisionTangentBasis)
 		{
 			if (bUseFullPrecisionUVs)
@@ -933,10 +950,17 @@ void FFurSkinData::CreateVertexFactories(TArray<FFurVertexFactory*>& VertexFacto
 			else
 				vf->template Init<EStaticMeshVertexTangentBasisType::Default, EStaticMeshVertexUVType::Default>(&VertexBuffer, InMorphVertexBuffer, s.NumBones);
 		}
+		
+		/*
+		 * 通知渲染线程，初始化顶点工厂
+		 */
 		BeginInitResource(vf);
 		VertexFactories.Add(vf);
 	};
 
+	/*
+	 * FurData遍历Section，按配置创建顶点工厂
+	 */
 	for (auto& s : Sections)
 	{
 		if (InPhysics && InFeatureLevel >= ERHIFeatureLevel::ES3_1)
