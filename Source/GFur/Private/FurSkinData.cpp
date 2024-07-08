@@ -610,8 +610,10 @@ void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderD
 }
 
 template<bool MorphTargets, bool Physics, bool ExtraInfluences>
-void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderDataType::UpdateBoneData(const TArray<FMatrix>& ReferenceToLocalMatrices, const TArray<FVector>& LinearOffsets, const TArray<FVector>& AngularOffsets,
-	const TArray<FMatrix>& LastTransformations, const TArray<FBoneIndexType>& BoneMap, bool InDiscontinuous, ERHIFeatureLevel::Type InFeatureLevel)
+void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderDataType::UpdateBoneData(
+	const TArray<FMatrix>& ReferenceToLocalMatrices, const TArray<FVector>& LinearOffsets, const TArray<FVector>& AngularOffsets,
+	const TArray<FMatrix>& LastTransformations, const TArray<FBoneIndexType>& BoneMap,
+	bool InDiscontinuous, ERHIFeatureLevel::Type InFeatureLevel)
 {
 	const uint32 NumBones = BoneMap.Num();
 	check(NumBones <= MaxGPUSkinBones);
@@ -634,6 +636,9 @@ void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderD
 
 		uint32 OffsetArraySize = NumBones * 3 * sizeof(FVector4f);
 
+		/*
+		 * 创建CurrentBoneBuffer和CurrentBoneFurOffsetsBuffer两个Buffer
+		 */
 		if (!IsValidRef(*CurrentBoneBuffer))
 		{
 			FVertexBufferAndSRV Buffer;
@@ -654,7 +659,11 @@ void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderD
 			*CurrentBoneFurOffsetsBuffer = Buffer;
 			check(IsValidRef(*CurrentBoneFurOffsetsBuffer));
 		}
-
+		
+		/*
+		 * 传入的BoneMap的数量大于0
+		 * Lock刚刚创建的两个buffer
+		 */
 		if (NumBones)
 		{
 			ChunkMatrices = (float*)RHILockBuffer(CurrentBoneBuffer->VertexBufferRHI, 0, VectorArraySize, RLM_WriteOnly);
@@ -679,14 +688,29 @@ void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderD
 		const int32 PreFetchStride = 2; // FPlatformMisc::Prefetch stride
 		for (uint32 BoneIdx = 0; BoneIdx < NumBones; BoneIdx++)
 		{
+			/*
+			 * 遍历BoneMap
+			 * 从传入的ReferenceToLocalMatrices中，根据索引偏移，对数据进行预获取
+			 */
 			const FBoneIndexType RefToLocalIdx = BoneMap[BoneIdx];
 			FPlatformMisc::Prefetch(ReferenceToLocalMatrices.GetData() + RefToLocalIdx + PreFetchStride);
 			FPlatformMisc::Prefetch(ReferenceToLocalMatrices.GetData() + RefToLocalIdx + PreFetchStride, PLATFORM_CACHE_LINE_SIZE);
 
+			/*
+			 * 通过前面lock获得的ChunkMatrices，再对应BoneIdx获得BoneMat
+			 * 从ReferenceToLocalMatrices获得指定索引的矩阵，调用To3x4MatrixTranspose，将转置填充到BoneMat
+			 * 也就更新了CurrentBoneBuffer
+			 * UFurComponent::ReferenceToLocal --> CurrentBoneBuffer
+			 */
 			float* BoneMat = ChunkMatrices + BoneIdx * 12;
 			const FMatrix44f RefToLocal = FMatrix44f(ReferenceToLocalMatrices[RefToLocalIdx]);
 			RefToLocal.To3x4MatrixTranspose(BoneMat);
 
+			/*
+			 * 通过前面lock获得的Offsets，
+			 * 把对应索引的LinearOffsets/AngularOffsets/LastTransformations设置给CurrentBoneFurOffsetsBuffer
+			 * UFurComponent::LinearOffsets/AngularOffsets/Transformations的原点 --> CurrentBoneFurOffsetsBuffer
+			 */
 			Offsets[BoneIdx * 3] = FVector3f(LinearOffsets[RefToLocalIdx]);
 			Offsets[BoneIdx * 3 + 1] = FVector3f(AngularOffsets[RefToLocalIdx]);
 			Offsets[BoneIdx * 3 + 2] = FVector3f(LastTransformations[RefToLocalIdx].GetOrigin());
@@ -708,6 +732,9 @@ void FFurSkinVertexFactoryBase<MorphTargets, Physics, ExtraInfluences>::FShaderD
 	}
 	if (InFeatureLevel >= ERHIFeatureLevel::ES3_1)
 	{
+		/*
+		 * 解锁CurrentBoneBuffer和CurrentBoneFurOffsetsBuffer
+		 */
 		if (NumBones)
 		{
 			check(CurrentBoneBuffer);

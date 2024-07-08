@@ -945,16 +945,22 @@ void UGFurComponent::updateFur()
 		if (AngularOffset.Size() > MaxTorque)
 			AngularOffset *= MaxTorque / AngularOffset.Size();
 
+		/*
+		 * 主要是为了计算Transformation，返回给外面调用的UFurComponent::Transformations
+		 */
 		Transformation = NewTransformation;
 	};
 
 	if (SkeletalGrowMesh)
 	{
+		/*
+		 * 获取SkeletonMesh在对应LOD下相关资源
+		 */
 		const USkeletalMesh* const ThisMesh = SkeletalGrowMesh;
 		const USkinnedMeshComponent* const MasterComp = MasterPoseComponent.Get();
 		const USkinnedAsset* const MasterCompMesh = MasterComp ? MasterComp->GetSkinnedAsset() : nullptr;
 		const auto& LOD = SkeletalGrowMesh->GetResourceForRendering()->LODRenderData[Scene->GetCurrentMeshLodLevel()];
-
+		
 		TArray<FMatrix, TInlineAllocator<256>> TempMatrices;
 		TArray<bool, TInlineAllocator<256>> ValidTempMatrices;
 		const auto& RefSkeleton = ThisMesh->GetRefSkeleton();
@@ -962,6 +968,11 @@ void UGFurComponent::updateFur()
 		check(RefBasesInvMatrix.Num() != 0);
 		if (ReferenceToLocal.Num() != RefBasesInvMatrix.Num())
 		{
+			/*
+			 * ReferenceToLocal和从Mesh中获得的RefBasesInvMatrix的数量不等
+			 * 有可能是第一帧、或者Mesh发生变化
+			 * 需要初始化速度，OldPositionValid为false
+			 */
 			Transformations.Reset();
 			Transformations.AddUninitialized(RefBasesInvMatrix.Num());
 			ReferenceToLocal.Reset();
@@ -997,6 +1008,10 @@ void UGFurComponent::updateFur()
 
 		const TArray<FBoneIndexType>* RequiredBoneSets[3] = { &LOD.ActiveBoneIndices, 0/*ExtraRequiredBoneIndices*/, NULL };
 
+		/*
+		 * 遍历lod下相应激活的骨骼索引，计算其相对父节点的变换矩阵填充到TempMatrices对应的索引下
+		 * 并更新ValidTempMatrices对应索引为true
+		 */
 		// Handle case of using ParentAnimComponent for SpaceBases.
 		for (int32 RequiredBoneSetIndex = 0; RequiredBoneSets[RequiredBoneSetIndex] != NULL; RequiredBoneSetIndex++)
 		{
@@ -1067,8 +1082,13 @@ void UGFurComponent::updateFur()
 			}
 		}
 
-		if (OldPositionValid && LodPhysicsEnabled)
+		if (OldPositionValid && LodPhysicsEnabled)//OldPositionValid为true，上一帧位置合法，并且开启物理计算
 		{
+			/*
+			 * 遍历ReferenceToLocal
+			 * 从TempMatrices对应索引获得局部矩阵，乘上ToWorld，得到世界坐标的变换矩阵NewTransformation
+			 * 调用Physics()，进行物理模拟
+			 */
 			for (int32 ThisBoneIndex = 0; ThisBoneIndex < ReferenceToLocal.Num(); ++ThisBoneIndex)
 			{
 				FMatrix NewTransformation;
@@ -1080,6 +1100,9 @@ void UGFurComponent::updateFur()
 				}
 				else
 				{
+					/*
+					 * ValidTempMatrices对应索引为false，置零ReferenceToLocal对应索引项和NewTransformation
+					 */
 					ReferenceToLocal[ThisBoneIndex] = FMatrix::Identity;
 					NewTransformation = FMatrix::Identity;
 				}
@@ -1090,6 +1113,11 @@ void UGFurComponent::updateFur()
 		}
 		else
 		{
+			/*
+			 * 遍历ReferenceToLocal
+			 * 从TempMatrices对应索引获得局部矩阵，乘上ToWorld，得到世界坐标的变换矩阵设置给Transformations
+			 * 调用Physics()，进行物理模拟
+			 */
 			for (int32 ThisBoneIndex = 0; ThisBoneIndex < ReferenceToLocal.Num(); ++ThisBoneIndex)
 			{
 				if (ValidTempMatrices[ThisBoneIndex])
@@ -1100,10 +1128,17 @@ void UGFurComponent::updateFur()
 				}
 				else
 				{
+					/*
+					 * ValidTempMatrices对应索引为false，置零ReferenceToLocal和Transformations的对应索引项
+					 */
 					ReferenceToLocal[ThisBoneIndex] = FMatrix::Identity;
 					Transformations[ThisBoneIndex] = FMatrix::Identity;
 				}
 
+				
+				/*
+				 * 不进行物理模拟，所以相应的偏移和速度都置零
+				 */
 				LinearOffsets[ThisBoneIndex].Set(0.0f, 0.0f, 0.0f);
 				AngularOffsets[ThisBoneIndex].Set(0.0f, 0.0f, 0.0f);
 
@@ -1161,11 +1196,19 @@ void UGFurComponent::UpdateFur_RenderThread(FRHICommandListImmediate& RHICmdList
 		{
 			const auto& LOD = SkeletalGrowMesh->GetResourceForRendering()->LODRenderData[FurProxy->GetCurrentMeshLodLevel()];
 			const auto& Sections = LOD.RenderSections;
+			/*
+			 * 遍历指定LOD（FSkeletalMeshLODRenderData）下的Section（FSkelMeshRenderSection）
+			 * 从SceneProxy类中获得顶点工厂，调用UpdateSkeletonShaderData()，传入ReferenceToLocal、Transformations等多个成员变量，对ShaderData进行更新
+			 */
 			for (int32 SectionIdx = 0; SectionIdx < Sections.Num(); SectionIdx++)
 			{
 				FurProxy->GetVertexFactory(SectionIdx, true)->UpdateSkeletonShaderData(ForceDistribution, MaxPhysicsOffsetLength, ReferenceToLocal, LinearOffsets, AngularOffsets, Transformations,
 					Sections[SectionIdx].BoneMap, Discontinuous || CurrentLOD != LastLOD, SceneFeatureLevel);
 			}
+			/*
+			 * 如果有MorphTargets
+			 * 从SceneProxy类中获得MorphTarget，调用Update_RenderThread()
+			 */
 			if (!DisableMorphTargets && MasterPoseComponent.IsValid() && FurProxy->GetMorphObject(true))
 			{
 				int32 FurLodLevel = FurProxy->GetCurrentFurLodLevel();
