@@ -220,7 +220,7 @@ public:
 		OutElements.Add(AccessStreamComponent(InData.FurOffset, 12));
 	}
 
-	void InitRHI() override
+	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
 		// list of declaration items
 		FVertexDeclarationElementList Elements;

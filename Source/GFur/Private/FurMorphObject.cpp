@@ -8,7 +8,7 @@
 #include "Runtime/Engine/Classes/Animation/MorphTarget.h"
 #include "ShaderParameterUtils.h"
 
-void FFurMorphVertexBuffer::InitDynamicRHI()
+void FFurMorphVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	// Create the buffer rendering resource
 	uint32 Size = NumVertices * sizeof(FMorphGPUSkinVertex);
@@ -19,17 +19,17 @@ void FFurMorphVertexBuffer::InitDynamicRHI()
 	// BUF_ShaderResource is needed for Morph support of the SkinCache
 	Flags = (EBufferUsageFlags)(Flags | BUF_ShaderResource);
 
-	VertexBufferRHI = RHICreateVertexBuffer(Size, Flags, CreateInfo);
+	VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, Flags, CreateInfo);
 
 	// Lock the buffer.
-	void* BufferData = RHILockBuffer(VertexBufferRHI, 0, Size, RLM_WriteOnly);
+	void* BufferData = RHICmdList.LockBuffer(VertexBufferRHI, 0, Size, RLM_WriteOnly);
 	FMorphGPUSkinVertex* Buffer = (FMorphGPUSkinVertex*)BufferData;
 	FMemory::Memzero(&Buffer[0], Size);
 	// Unlock the buffer.
-	RHIUnlockBuffer(VertexBufferRHI);
+	RHICmdList.UnlockBuffer(VertexBufferRHI);
 }
 
-void FFurMorphVertexBuffer::ReleaseDynamicRHI()
+void FFurMorphVertexBuffer::ReleaseRHI()
 {
 	VertexBufferRHI.SafeRelease();
 }

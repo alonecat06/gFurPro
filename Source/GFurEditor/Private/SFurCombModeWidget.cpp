@@ -139,7 +139,7 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 {
 	FToolBarBuilder ModeSwitchButtons(MakeShareable(new FUICommandList()), FMultiBoxCustomization::None);
 	{
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::Length);
 			SettingsObjects.Empty();
@@ -147,11 +147,11 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Length; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Length; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Length", "Length"), LOCTEXT("Mode.FurComb.Length.Tooltip", "Length - makes the fur longer, holding shift while combing makes the fur shorter"),
 			FSlateIcon("gFurStyleSet", "gFur.Length", "gFur.Length.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::AverageLength);
 			SettingsObjects.Empty();
@@ -159,11 +159,11 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::AverageLength; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::AverageLength; })),
 			NAME_None, LOCTEXT("Mode.FurComb.AverageLength", "Average Length"), LOCTEXT("Mode.FurComb.Average.Tooltip", "Average Length - averages the length of fur in the combed area"),
 			FSlateIcon("gFurStyleSet", "gFur.AverageLength", "gFur.AverageLength.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::Bend);
 			SettingsObjects.Empty();
@@ -171,11 +171,11 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Bend; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Bend; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Bend", "Bend"), LOCTEXT("Mode.FurComb.Bend.Tooltip", "Bend - bends the fur along the brush stroke, using shift inverses the effect"),
 			FSlateIcon("gFurStyleSet", "gFur.Bend", "gFur.Bend.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::Clump);
 			SettingsObjects.Empty();
@@ -183,11 +183,11 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Clump; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Clump; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Clump", "Clump"), LOCTEXT("Mode.FurComb.Clump.Tooltip", "Clump - clumps the fur along the brush stroke, using shift inverses the effect"),
 			FSlateIcon("gFurStyleSet", "gFur.Clump", "gFur.Clump.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::Twist);
 			SettingsObjects.Empty();
@@ -195,11 +195,11 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Twist; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Twist; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Twist", "Twist"), LOCTEXT("Mode.FurComb.Twist.Tooltip", "Twist - twists the fur, shift inverts the effect"),
 			FSlateIcon("gFurStyleSet", "gFur.Twist", "gFur.Twist.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::Noise);
 			SettingsObjects.Empty();
@@ -207,22 +207,22 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Noise; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Noise; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Noise", "Noise"), LOCTEXT("Mode.FurComb.Noise.Tooltip", "Noise - adds noise to the fur, shift inverts the effect"),
 			FSlateIcon("gFurStyleSet", "gFur.Noise", "gFur.Noise.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]() {
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]() {
 			FurComb->SetMode(EFurCombMode::Curl);
 			SettingsObjects.Empty();
 			SettingsObjects.Add(FurComb->GetCurrentFurCombSettings());
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Curl; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Curl; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Curl", "Curl"), LOCTEXT("Mode.FurComb.Curl.Tooltip", "Curl - curls or twists single hair guide along it's pivot"),
 			FSlateIcon("gFurStyleSet", "gFur.Curl", "gFur.Curl.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::Relax);
 			SettingsObjects.Empty();
@@ -230,11 +230,11 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::Relax; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::Relax; })),
 			NAME_None, LOCTEXT("Mode.FurComb.Relax", "Relax"), LOCTEXT("Mode.FurComb.Relax.Tooltip", "Relax - relaxes the fur towards being straight"),
 			FSlateIcon("gFurStyleSet", "gFur.Relax", "gFur.Relax.Small"), EUserInterfaceActionType::ToggleButton);
 
-		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([=]()
+		ModeSwitchButtons.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([this]()
 		{
 			FurComb->SetMode(EFurCombMode::AddRemove);
 			SettingsObjects.Empty();
@@ -242,7 +242,7 @@ TSharedPtr<SWidget> SFurCombModeWidget::CreateToolBarWidget()
 			SettingsDetailsView->SetObjects(SettingsObjects);
 			FurComb->GetCurrentFurCombSettings()->RegWidget(this);
 			UpdateSelectedPresset(FurComb->GetCurrentFurCombSettings());
-		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([=]() -> bool { return FurComb->GetMode() == EFurCombMode::AddRemove; })),
+		}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this]() -> bool { return FurComb->GetMode() == EFurCombMode::AddRemove; })),
 			NAME_None, LOCTEXT("Mode.FurComb.AddRemove", "AddRemove"), LOCTEXT("Mode.FurComb.AddRemove.Tooltip", "Add/Remove - adds fur, shift removes fur completely"),
 			FSlateIcon("gFurStyleSet", "gFur.AddRemove", "gFur.AddRemove.Small"), EUserInterfaceActionType::ToggleButton);
 	}

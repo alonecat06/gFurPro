@@ -9,15 +9,15 @@ FFurVertexBuffer::~FFurVertexBuffer()
 	delete[]VertexData;
 }
 
-void FFurVertexBuffer::InitRHI()
+void FFurVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	FRHIResourceCreateInfo CreateInfo(L"FurVertexBuffer");
-	VertexBufferRHI = RHICreateVertexBuffer(Size, BUF_Static, CreateInfo);
+	VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
 
 	// Copy the vertex data into the vertex buffer.
-	void* VertexBufferData = RHILockBuffer(VertexBufferRHI, 0, Size, RLM_WriteOnly);
+	void* VertexBufferData = RHICmdList.LockBuffer(VertexBufferRHI, 0, Size, RLM_WriteOnly);
 	FMemory::Memcpy(VertexBufferData, VertexData, Size);
-	RHIUnlockBuffer(VertexBufferRHI);
+	RHICmdList.UnlockBuffer(VertexBufferRHI);
 
 #if !WITH_EDITORONLY_DATA
 	delete[]VertexData;
@@ -50,17 +50,17 @@ void FFurVertexBuffer::Unlock()
 }
 
 /** Index Buffer */
-void FFurIndexBuffer::InitRHI()
+void FFurIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	if (Indices.Num() == 0)
 		Indices.Add(0);
 
 	FRHIResourceCreateInfo CreateInfo(L"FurVertexBuffer");
-	IndexBufferRHI = RHICreateIndexBuffer(sizeof(int32), Indices.Num() * sizeof(int32), BUF_Static, CreateInfo);
+	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(int32), Indices.Num() * sizeof(int32), BUF_Static, CreateInfo);
 	// Write the indices to the index buffer.
-	void* Buffer = RHILockBuffer(IndexBufferRHI, 0, Indices.Num() * sizeof(int32), RLM_WriteOnly);
+	void* Buffer = RHICmdList.LockBuffer(IndexBufferRHI, 0, Indices.Num() * sizeof(int32), RLM_WriteOnly);
 	FMemory::Memcpy(Buffer, Indices.GetData(), Indices.Num() * sizeof(int32));
-	RHIUnlockBuffer(IndexBufferRHI);
+	RHICmdList.UnlockBuffer(IndexBufferRHI);
 
 #if !WITH_EDITORONLY_DATA
 	Indices.SetNum(0, true);

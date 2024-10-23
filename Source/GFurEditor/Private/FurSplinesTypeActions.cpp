@@ -4,7 +4,7 @@
 #include "GFurEditor.h"
 #include "FurSplines.h"
 
-//#define LOCTEXT_NAMESPACE "AssetTypeActions"
+#define LOCTEXT_NAMESPACE "FFurSplinesTypeActions"
 
 FFurSplinesTypeActions::FFurSplinesTypeActions(EAssetTypeCategories::Type InAssetCategory)
 	:MyAssetCategory(InAssetCategory)

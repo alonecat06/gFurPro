@@ -6,6 +6,7 @@
 #include "Runtime/Renderer/Public/MeshMaterialShader.h"
 #include "Runtime/RHI/Public/RHICommandList.h"
 #include "ShaderParameterUtils.h"
+#include "MeshDrawShaderBindings.h"
 #include "FurComponent.h"
 
 static TArray< FFurSkinData* > FurSkinData;
@@ -424,7 +425,7 @@ public:
 		}
 	}
 
-	void InitRHI() override
+	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
 		// list of declaration items
 		FVertexDeclarationElementList Elements;
@@ -432,17 +433,15 @@ public:
 
 		// create the actual device decls
 		InitDeclaration(Elements);
-	}
 
-	void InitDynamicRHI() override
-	{
+		//void InitDynamicRHI() override
 		FVertexFactory::InitDynamicRHI();
 		ShaderData.InitDynamicRHI();
 	}
 
-	void ReleaseDynamicRHI() override
+	void ReleaseRHI() override
 	{
-		FVertexFactory::ReleaseDynamicRHI();
+		FVertexFactory::ReleaseRHI();
 		ShaderData.ReleaseBoneData();
 	}
 

@@ -48,7 +48,7 @@ class FFurVertexBuffer : public FVertexBuffer
 {
 public:
 	virtual ~FFurVertexBuffer() override;
-	virtual void InitRHI() override;
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 
 	template<typename VertexType>
 	VertexType* Lock(uint32 VertexCount);
@@ -84,7 +84,7 @@ VertexType* FFurVertexBuffer::Lock(uint32 InVertexCount)
 class FFurIndexBuffer : public FIndexBuffer
 {
 public:
-	virtual void InitRHI() override;
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 
 	TArray<int32>& Lock();
 	void Unlock();

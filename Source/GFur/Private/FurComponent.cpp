@@ -109,7 +109,7 @@ public:
 
 				}
 				RayTracingGeometry.SetInitializer(Initializer);
-				RayTracingGeometry.InitResource();
+				RayTracingGeometry.InitResource(RHICmdList);
 			});
 		}
 #endif

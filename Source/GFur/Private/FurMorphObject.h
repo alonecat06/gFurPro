@@ -13,12 +13,12 @@ public:
 	/**
 	* Initialize the dynamic RHI for this rendering resource
 	*/
-	virtual void InitDynamicRHI() override;
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 
 	/**
 	* Release the dynamic RHI for this rendering resource
 	*/
-	virtual void ReleaseDynamicRHI() override;
+	virtual void ReleaseRHI() override;
 
 	/**
 	* Morph target vertex name
